@@ -7,6 +7,7 @@ import nextcord
 import redis
 from nextcord import Interaction, Locale
 from nextcord.ext import commands
+from googleapiclient import discovery
 
 # load config & language
 config = configparser.ConfigParser()
@@ -33,9 +34,6 @@ db = config['REDIS']['db']
 
 # check config
 error_count = 0
-
-TESTING_GUILD_ID = 1023440388352114749
-
 
 if len(prefix) > 1:
     print('Error: Prefix must be only one character.')
@@ -72,12 +70,35 @@ except:
     time.sleep(5)
     exit()
 
+try:
+    google = discovery.build(
+        "commentanalyzer",
+        "v1alpha1",
+        developerKey=config['GOOGLE']['api_key'],
+        discoveryServiceUrl="https://commentanalyzer.googleapis.com/$discovery/rest?version=v1alpha1",
+        static_discovery=False,
+    )
+except:
+    print('Error: Could not connect to Google API.')
+    print('Please change the config file (config.ini) and try again.')
+    print('Exiting in 5 seconds...')
+    time.sleep(5)
+    exit()
+
 # discord setup
 intents = nextcord.Intents.default()
 intents.members = True
 intents.message_content = True
 
 client = commands.Bot(command_prefix=prefix, intents=intents)
+
+def eveluate(expression):
+    analyze_request = {'comment': {'text': expression}, 'requestedAttributes': {'TOXICITY': {}}}
+    try:
+        response = google.comments().analyze(body=analyze_request).execute()
+        return round(100 * (response['attributeScores']['TOXICITY']['summaryScore']['value']), 2)
+    except:
+        return None
 
 # Bot startup
 @client.event
@@ -101,3 +122,61 @@ async def on_ready():
     print(f"Owner: {owner_name} ({owner_id})")
     print(f'Currenly running nextcord {nextcord.__version__} on python {platform.python_version()}')
     print('======================================')
+
+@client.event
+async def on_message(message):
+    if message.author.bot:
+        return
+    evaluation = eveluate(message.content)
+    if evaluation is not None:
+        evalue = r.get(f'val:{message.author.id}')
+        message_count = r.get(f'msg:{message.author.id}')
+        if evalue is None:
+            r.set(f'val:{message.author.id}', evaluation)
+            r.set(f'msg:{message.author.id}', 1)
+        else:
+            r.set(f'val:{message.author.id}', (float(evalue) + evaluation))
+            r.set(f'msg:{message.author.id}', int(message_count) + 1)
+
+        if evaluation > 70:
+            await message.delete()
+            embed = nextcord.Embed(title='메세지 삭제 안내', description=f'메세지가 `{evaluation}%` 부정적이기에 삭제되었습니다.', color=nextcord.Color.red())
+            embed.set_footer(text='이 메세지는 5초 후 삭제됩니다.')
+            await message.channel.send(content=f'{message.author.mention}' ,embed=embed, delete_after=5)
+        elif evaluation > 50:
+            await message.add_reaction('🙁')
+
+@client.slash_command(name='전적', description='특적 유저의 메세지 전적을 확인합니다.')
+async def karma(interaction:Interaction,
+                user: nextcord.User = nextcord.SlashOption(
+                           description='전적을 확인할 유저를 선택해 주세요.',
+                           required=True)):
+    if user.bot:
+        await interaction.response.send_message('봇의 전적은 확인할 수 없습니다.', ephemeral=True)
+        return
+    evalue = r.get(f'val:{user.id}')
+    message_count = r.get(f'msg:{user.id}')
+    if evalue is None:
+        await interaction.response.send_message('해당 유저는 전적이 없습니다.', ephemeral=True)
+        return
+    else:
+        evaluation = 100 - round(float(evalue) / int(message_count), 2)
+        embed = nextcord.Embed(title=f'**{user.name}**의 전적', colour=nextcord.Color.from_hsv(0.5 * (evaluation / 100), 0.7, 1))
+        embed.add_field(name='봇에 기록된 메세지', value=f'**{message_count}**개', inline=True)
+        embed.add_field(name='매너 점수', value=f'**{evaluation}**점', inline=True)
+        await interaction.response.send_message(embed=embed)
+
+
+@client.message_command(guild_ids=[1023440388352114749])
+async def evaluate_message(interaction: nextcord.Interaction, message: nextcord.Message):
+    evaluation = eveluate(message.content)
+
+    if evaluation is None:
+        await interaction.response.send_message(
+            embed=nextcord.Embed(title='에러', description='메세지를 평가할 수 없었습니다.', color=nextcord.Color.red()),
+            ephemeral=True)
+    else:
+        color = nextcord.Color.from_hsv(0.5 * (1 - evaluation / 100), 0.7, 1)
+        await interaction.response.send_message(embed=nextcord.Embed(title='메세지 평가', description=f'이 메세지는 `{evaluation}%` 부정적입니다.', color=color), ephemeral=True)
+
+client.run(token)
