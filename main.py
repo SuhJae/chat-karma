@@ -150,7 +150,9 @@ async def on_message(message):
 async def karma(interaction:Interaction,
                 user: nextcord.User = nextcord.SlashOption(
                            description='전적을 확인할 유저를 선택해 주세요.',
-                           required=True)):
+                           required=False)):
+    if user is None:
+        user = interaction.user
     if user.bot:
         await interaction.response.send_message('봇의 전적은 확인할 수 없습니다.', ephemeral=True)
         return
@@ -161,7 +163,7 @@ async def karma(interaction:Interaction,
         return
     else:
         evaluation = 100 - round(float(evalue) / int(message_count), 2)
-        embed = nextcord.Embed(title=f'**{user.name}**의 전적', colour=nextcord.Color.from_hsv(0.5 * (evaluation / 100), 0.7, 1))
+        embed = nextcord.Embed(title=f'**{user.name}**님의 전적', colour=nextcord.Color.from_hsv(0.5 * (evaluation / 100), 0.7, 1))
         embed.add_field(name='봇에 기록된 메세지', value=f'**{message_count}**개', inline=True)
         embed.add_field(name='매너 점수', value=f'**{evaluation}**점', inline=True)
         await interaction.response.send_message(embed=embed)
