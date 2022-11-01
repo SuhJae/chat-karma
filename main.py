@@ -64,7 +64,7 @@ try:
     print(f'Connecting to Redis... ({host}:{port} Database: {db})')
     r = redis.Redis(host=host, port=port, password=password, decode_responses=True, db=db)
     r.ping()
-    print(f"Connected to redis.")
+    print(f'Connected to redis.')
 except:
     print('Error: Could not connect to Redis server.')
     print('Please change the config file (config.ini) and try again.')
@@ -94,6 +94,7 @@ intents.message_content = True
 
 client = commands.Bot(command_prefix=prefix, intents=intents)
 
+
 def eveluate(expression):
     analyze_request = {'comment': {'text': expression}, 'requestedAttributes': {'TOXICITY': {}}}
     try:
@@ -101,6 +102,7 @@ def eveluate(expression):
         return round(100 * (response['attributeScores']['TOXICITY']['summaryScore']['value']), 2)
     except:
         return None
+
 
 # Bot startup
 @client.event
@@ -125,6 +127,7 @@ async def on_ready():
     print(f'Currenly running nextcord {nextcord.__version__} on python {platform.python_version()}')
     print('======================================')
 
+
 @client.event
 async def on_message(message):
     if message.author.bot:
@@ -140,19 +143,46 @@ async def on_message(message):
             r.set(f'val:{message.author.id}', (float(evalue) + evaluation))
             r.set(f'msg:{message.author.id}', int(message_count) + 1)
 
-        if evaluation > 70:
-            await message.delete()
-            embed = nextcord.Embed(title='메세지 삭제 안내', description=f'메세지가 `{evaluation}%` 부정적이기에 삭제되었습니다.', color=nextcord.Color.red())
-            embed.set_footer(text='이 메세지는 5초 후 삭제됩니다.')
-            await message.channel.send(content=f'{message.author.mention}' ,embed=embed, delete_after=5)
-        elif evaluation > 50:
-            await message.add_reaction('🙁')
+        delete_percentage = r.get(f'del:{message.guild.id}')
+        if delete_percentage is None:
+            delete_percentage = 70
+        else:
+            delete_percentage = int(delete_percentage)
 
-@client.slash_command(name='전적', description='특적 유저의 메세지 전적을 확인합니다.')
-async def karma(interaction:Interaction,
+        if delete_percentage > 0:
+            if evaluation > delete_percentage:
+                await message.delete()
+                embed = nextcord.Embed(title='메세지 삭제 안내', description=f'메세지가 `{evaluation}%` 부정적이기에 삭제되었습니다.',
+                                       color=nextcord.Color.red())
+                embed.set_footer(text='이 메세지는 5초 후 삭제됩니다.')
+                await message.channel.send(content=f'{message.author.mention}', embed=embed, delete_after=5)
+
+                log_channel = r.get(f'log:{message.guild.id}')
+                if log_channel != None:
+                    embed = nextcord.Embed(title='', description=message.content, colour=nextcord.Color.red())
+                    embed.set_author(name='메세지 삭제', icon_url=message.author.avatar)
+                    embed.add_field(name='유저', value=message.author.mention)
+                    embed.add_field(name='채널', value=message.channel.mention)
+                    embed.add_field(name='부정도', value=f'`{evaluation}%`')
+                    embed.set_footer(text=f'유저 ID: {message.author.id} | 메세지 ID: {message.id}')
+                    await client.get_channel(int(log_channel)).send(embed=embed)
+                return
+        reaction_percentage = r.get(f'rea:{message.guild.id}')
+        if reaction_percentage is None:
+            reaction_percentage = 50
+        else:
+            reaction_percentage = int(reaction_percentage)
+            if reaction_percentage > 0:
+                if evaluation > reaction_percentage:
+                    await message.add_reaction('💔')
+
+
+@client.slash_command(name='history', description='자신 또는 특적 유저의 메세지 전적을 확인합니다.')
+async def karma(interaction: Interaction,
                 user: nextcord.User = nextcord.SlashOption(
-                           description='전적을 확인할 유저를 선택해 주세요.',
-                           required=False)):
+                    name='유저',
+                    description='전적을 확인할 유저를 선택해 주세요.',
+                    required=False)):
     if user is None:
         user = interaction.user
     if user.bot:
@@ -173,11 +203,51 @@ async def karma(interaction:Interaction,
         img = nextcord.File(f'image/{get_grade(evaluation).letter_grade()}.png', filename='image.png')
         embed.set_thumbnail(url='attachment://image.png')
 
-
         await interaction.response.send_message(embed=embed, file=img)
 
 
-@client.message_command(guild_ids=[1023440388352114749])
+@client.slash_command(name='dashboard', description='대시보드를 사용하여 봇의 설정을 변경합니다.', default_member_permissions=8)
+async def dashboard(interaction: Interaction):
+
+    delete_percentage = r.get(f'del:{interaction.guild.id}')
+    if delete_percentage is None:
+        delete_percentage = '**70%** 이상 부정적'
+    elif delete_percentage == '0':
+        delete_percentage = '`비활성`'
+    else:
+        delete_percentage = f'**{delete_percentage}%** 이상 부정적'
+
+    reaction_percentage = r.get(f'rea:{interaction.guild.id}')
+    if reaction_percentage is None:
+        reaction_percentage = '**50%** 이상 부정적'
+    elif reaction_percentage == '0':
+        reaction_percentage = '`비활성`'
+    else:
+        reaction_percentage = f'**{reaction_percentage}%** 이상 부정적'
+
+    logging_channel = r.get(f'log:{interaction.guild.id}')
+    if logging_channel is None:
+        logging_channel = '`없음`'
+    else:
+        logging_channel = f'<#{logging_channel}>'
+
+    embed = nextcord.Embed(title=f'**{client.user.name}** 대시보드', description='밑에 있는 드랍다운을 사용하여 봇의 설정을 변경할 수 있습니다.', colour=nextcord.Color.green())
+    embed.add_field(name='**🧹 삭제 기준**', value=delete_percentage, inline=True)
+    embed.add_field(name='**💔 반응 기준**', value=reaction_percentage, inline=True)
+    embed.add_field(name='**📝 로그 채널**', value=f'{logging_channel}', inline=True)
+    embed.set_footer(text='메세지 삭제 또는 반응을 원치 않을 경우 0으로 설정해 주세요.')
+
+    selections = [
+        nextcord.SelectOption(label='삭제 기준 변경', value='del', emoji='🧹'),
+        nextcord.SelectOption(label='반응 기준 변경', value='rea', emoji='💔'),
+        nextcord.SelectOption(label='로그 채널 변경', value='log', emoji='📝')
+    ]
+    view = DropdownMenu(selections, '변경할 설정을 선택해 주세요.')
+
+    await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+
+
+@client.message_command(name='메세지 평가')
 async def evaluate_message(interaction: nextcord.Interaction, message: nextcord.Message):
     evaluation = eveluate(message.content)
 
@@ -187,7 +257,77 @@ async def evaluate_message(interaction: nextcord.Interaction, message: nextcord.
             ephemeral=True)
     else:
         color = nextcord.Color.from_hsv(0.5 * (1 - evaluation / 100), 0.7, 1)
-        await interaction.response.send_message(embed=nextcord.Embed(title='메세지 평가', description=f'이 메세지는 `{evaluation}%` 부정적입니다.', color=color), ephemeral=True)
+        await interaction.response.send_message(
+            embed=nextcord.Embed(title='메세지 평가', description=f'이 메세지는 `{evaluation}%` 부정적입니다.', color=color),
+            ephemeral=True)
+
+
+# Class to handle the dropdown
+class Dropdown(nextcord.ui.Select):
+    def __init__(self, options, placeholder):
+        super().__init__(placeholder=placeholder, options=options)
+
+    async def callback(self, interaction: Interaction):
+        if self.values[0] == 'del':
+            modal = Popup('삭제 기준 변경', '0을 입력하면 메세지 삭제를 비활성화 합니다.', '0~100 사이의 숫자를 입력하세요.', 'del',)
+            await interaction.response.send_modal(modal)
+        elif self.values[0] == 'rea':
+            modal = Popup('반응 기준 변경', '0을 입력하면 메세지 반응을 비활성화 합니다.', '0~100 사이의 숫자를 입력하세요.', 'rea',)
+            await interaction.response.send_modal(modal)
+        elif self.values[0] == 'log':
+            selections = []
+            # get channel that bot can send message
+            for channel in interaction.guild.channels:
+                if channel.permissions_for(interaction.guild.me).send_messages and channel.type == nextcord.ChannelType.text:
+                    selections.append(nextcord.SelectOption(label="# " + channel.name, description=str(channel.id), emoji='📝', value=f'set_log:{channel.id}'))
+
+            if len(selections) == 0:
+                await interaction.response.send_message(embed=nextcord.Embed(title='오류', description=f'이 봇이 메세지를 보낼 수 있는 채널이 없습니다.', colour=nextcord.Color.red()), ephemeral=True)
+            else:
+                view = DropdownMenu(selections, '로그 채널을 선택해 주세요.')
+                embed = nextcord.Embed(title='로그 채널 변경', description='밑에 있는 드랍다운을 사용하여 로그 채널을 변경할 수 있습니다.', colour=nextcord.Color.green())
+                await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+        elif self.values[0].startswith('set_log:'):
+            channel_id = self.values[0].split(':')[1]
+            r.set(f'log:{interaction.guild.id}', channel_id)
+            await interaction.response.send_message(embed=nextcord.Embed(title='완료', description=f'로그 채널이 <#{channel_id}>로 변경되었습니다.', colour=nextcord.Color.green()), ephemeral=True)
+
+
+class DropdownMenu(nextcord.ui.View):
+    def __init__(self, options, placeholder):
+        super().__init__()
+        self.add_item(Dropdown(options, placeholder))
+
+
+class Popup(nextcord.ui.Modal):
+    def __init__(self, title, label, placeholder, id):
+        super().__init__(
+            title=title,
+            timeout=None,
+        )
+
+        self.name = nextcord.ui.TextInput(
+            label=label,
+            placeholder=placeholder,
+            max_length=3,
+            custom_id=id,
+        )
+        self.add_item(self.name)
+
+
+    async def callback(self, interaction: nextcord.Interaction) -> None:
+        if interaction.data['components'][0]['components'][0]['custom_id'] == 'del':
+            if self.name.value.isdigit() and 0 <= int(self.name.value) <= 100:
+                await interaction.response.send_message(embed=nextcord.Embed(title='설정 완료', description=f'성공적으로 메세지 삭제 기준을 **{self.name.value}%**부정적으로 정했습니다.', colour=nextcord.Color.green()), ephemeral=True)
+                r.set(f'del:{interaction.guild.id}', self.name.value)
+            else:
+                await interaction.response.send_message(embed=nextcord.Embed(title='오류', description=f'잘못된 값(`{self.name.value}`)을 입력하셨습니다. 0~100 사이의 숫자를 입력해 주세요.', colour=nextcord.Color.red()), ephemeral=True)
+        elif interaction.data['components'][0]['components'][0]['custom_id'] == 'rea':
+            if self.name.value.isdigit() and 0 <= int(self.name.value) <= 100:
+                await interaction.response.send_message(embed=nextcord.Embed(title='설정 완료', description=f'성공적으로 메세지 반응 기준을 **{self.name.value}%**부정적으로 정했습니다.', colour=nextcord.Color.green()), ephemeral=True)
+                r.set(f'rea:{interaction.guild.id}', self.name.value)
+            else:
+                await interaction.response.send_message(embed=nextcord.Embed(title='오류', description=f'잘못된 값(`{self.name.value}`)을 입력하셨습니다. 0~100 사이의 숫자를 입력해 주세요.', colour=nextcord.Color.red()), ephemeral=True)
 
 
 
