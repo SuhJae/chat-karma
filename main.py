@@ -9,6 +9,8 @@ from nextcord import Interaction, Locale
 from nextcord.ext import commands
 from googleapiclient import discovery
 
+from grading import get_grade
+
 # load config & language
 config = configparser.ConfigParser()
 config.read('config.ini')
@@ -163,10 +165,16 @@ async def karma(interaction:Interaction,
         return
     else:
         evaluation = 100 - round(float(evalue) / int(message_count), 2)
-        embed = nextcord.Embed(title=f'**{user.name}**님의 전적', colour=nextcord.Color.from_hsv(0.5 * (evaluation / 100), 0.7, 1))
+        embed = nextcord.Embed(title=f'', colour=get_grade(evaluation).color())
         embed.add_field(name='봇에 기록된 메세지', value=f'**{message_count}**개', inline=True)
         embed.add_field(name='매너 점수', value=f'**{evaluation}**점', inline=True)
-        await interaction.response.send_message(embed=embed)
+        embed.set_author(name=f'{user.name}님의 전적', icon_url=interaction.user.avatar)
+
+        img = nextcord.File(f'image/{get_grade(evaluation).letter_grade()}.png', filename='image.png')
+        embed.set_thumbnail(url='attachment://image.png')
+
+
+        await interaction.response.send_message(embed=embed, file=img)
 
 
 @client.message_command(guild_ids=[1023440388352114749])
@@ -180,5 +188,7 @@ async def evaluate_message(interaction: nextcord.Interaction, message: nextcord.
     else:
         color = nextcord.Color.from_hsv(0.5 * (1 - evaluation / 100), 0.7, 1)
         await interaction.response.send_message(embed=nextcord.Embed(title='메세지 평가', description=f'이 메세지는 `{evaluation}%` 부정적입니다.', color=color), ephemeral=True)
+
+
 
 client.run(token)
