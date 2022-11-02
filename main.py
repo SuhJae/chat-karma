@@ -198,7 +198,7 @@ async def karma(interaction: Interaction,
         embed = nextcord.Embed(title=f'', colour=get_grade(evaluation).color())
         embed.add_field(name='봇에 기록된 메세지', value=f'**{message_count}**개', inline=True)
         embed.add_field(name='매너 점수', value=f'**{evaluation}**점', inline=True)
-        embed.set_author(name=f'{user.name}님의 전적', icon_url=interaction.user.avatar)
+        embed.set_author(name=f'{user.name}님의 전적', icon_url=user.avatar)
 
         img = nextcord.File(f'image/{get_grade(evaluation).letter_grade()}.png', filename='image.png')
         embed.set_thumbnail(url='attachment://image.png')
@@ -314,7 +314,6 @@ class Popup(nextcord.ui.Modal):
         )
         self.add_item(self.name)
 
-
     async def callback(self, interaction: nextcord.Interaction) -> None:
         if interaction.data['components'][0]['components'][0]['custom_id'] == 'del':
             if self.name.value.isdigit() and 0 <= int(self.name.value) <= 100:
@@ -328,7 +327,6 @@ class Popup(nextcord.ui.Modal):
                 r.set(f'rea:{interaction.guild.id}', self.name.value)
             else:
                 await interaction.response.send_message(embed=nextcord.Embed(title='오류', description=f'잘못된 값(`{self.name.value}`)을 입력하셨습니다. 0~100 사이의 숫자를 입력해 주세요.', colour=nextcord.Color.red()), ephemeral=True)
-
 
 
 client.run(token)
