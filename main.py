@@ -94,7 +94,6 @@ intents.message_content = True
 
 client = commands.Bot(command_prefix=prefix, intents=intents)
 
-
 def eveluate(expression):
     analyze_request = {'comment': {'text': expression}, 'requestedAttributes': {'TOXICITY': {}}}
     try:
