@@ -138,6 +138,7 @@ async def on_ready():
 
 @client.event
 async def on_message(message):
+    lang = lang_check(message.guild.preferred_locale)
     if message.author.bot:
         return
     evaluation = eveluate(message.content)
@@ -160,19 +161,20 @@ async def on_message(message):
         if delete_percentage > 0:
             if evaluation > delete_percentage:
                 await message.delete()
-                embed = nextcord.Embed(title='메세지 삭제 안내', description=f'메세지가 `{evaluation}%` 부정적이기에 삭제되었습니다.',
+                embed = nextcord.Embed(title='', description=lang['DELETION']['description'].format(evaluation),
                                        color=nextcord.Color.red())
-                embed.set_footer(text='이 메세지는 5초 후 삭제됩니다.')
+                embed.set_author(name=lang['DELETION']['title'], icon_url=message.author.avatar)
+                embed.set_footer(text=lang['DELETION']['footer'])
                 await message.channel.send(content=f'{message.author.mention}', embed=embed, delete_after=5)
 
                 log_channel = r.get(f'log:{message.guild.id}')
                 if log_channel != None:
                     embed = nextcord.Embed(title='', description=message.content, colour=nextcord.Color.red())
-                    embed.set_author(name='메세지 삭제', icon_url=message.author.avatar)
-                    embed.add_field(name='유저', value=message.author.mention)
-                    embed.add_field(name='채널', value=message.channel.mention)
-                    embed.add_field(name='부정도', value=f'`{evaluation}%`')
-                    embed.set_footer(text=f'유저 ID: {message.author.id} | 메세지 ID: {message.id}')
+                    embed.set_author(name=lang['LOG']['title'], icon_url=message.author.avatar)
+                    embed.add_field(name=lang['LOG']['user'], value=message.author.mention)
+                    embed.add_field(name=lang['LOG']['channel'], value=message.channel.mention)
+                    embed.add_field(name=lang['LOG']['negativity'], value=f'`{evaluation}%`')
+                    embed.set_footer(text=lang['LOG']['footer'].format(message.author.id, message.id))
                     await client.get_channel(int(log_channel)).send(embed=embed)
                 return
         reaction_percentage = r.get(f'rea:{message.guild.id}')
@@ -180,9 +182,9 @@ async def on_message(message):
             reaction_percentage = 50
         else:
             reaction_percentage = int(reaction_percentage)
-            if reaction_percentage > 0:
-                if evaluation > reaction_percentage:
-                    await message.add_reaction('💔')
+        if reaction_percentage > 0:
+            if evaluation > reaction_percentage:
+                await message.add_reaction('💔')
 
 
 @client.slash_command(name=fallback_lang['KARMA']['name'], description=fallback_lang['KARMA']['description'])
@@ -260,19 +262,21 @@ async def dashboard(interaction: Interaction):
     await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
 
-@client.message_command(name='메세지 평가')
+@client.message_command(name=fallback_lang['EVALUATE']['name'])
 async def evaluate_message(interaction: nextcord.Interaction, message: nextcord.Message):
     evaluation = eveluate(message.content)
+    lang = lang_check(interaction.locale)
 
     if evaluation is None:
         await interaction.response.send_message(
-            embed=nextcord.Embed(title='에러', description='메세지를 평가할 수 없었습니다.', color=nextcord.Color.red()),
+            embed=nextcord.Embed(title=lang['EVALUATE']['error'], description=lang['EVALUATE']['error.description'], color=nextcord.Color.red()),
             ephemeral=True)
     else:
         color = nextcord.Color.from_hsv(0.5 * (1 - evaluation / 100), 0.7, 1)
-        await interaction.response.send_message(
-            embed=nextcord.Embed(title='메세지 평가', description=f'이 메세지는 `{evaluation}%` 부정적입니다.', color=color),
-            ephemeral=True)
+        embed = nextcord.Embed(title='', description=lang['EVALUATE']['description'].format(evaluation), color=color)
+        embed.set_author(name=lang['EVALUATE']['title'].format(message.author.display_name), icon_url=message.author.avatar)
+        embed.set_footer(text=lang['EVALUATE']['footer'])
+        await interaction.response.send_message(embed=embed ,ephemeral=True)
 
 
 # Class to handle the dropdown
