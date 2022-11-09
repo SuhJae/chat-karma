@@ -15,7 +15,7 @@ from grading import get_grade
 config = configparser.ConfigParser()
 config.read('config.ini')
 fallback_lang = configparser.ConfigParser()
-fallback_lang.read('language.ini')
+fallback_lang.read('language/fallback.ini')
 english = configparser.ConfigParser()
 english.read('language/en_us.ini')
 korean = configparser.ConfigParser()
@@ -102,6 +102,15 @@ def eveluate(expression):
     except:
         return None
 
+def lang_check(locale):
+    # if locale == "en-US":
+    #     return english
+    # elif locale == "ko":
+    #     return korean
+    # elif locale == "zh-CN":
+    #     return chinese
+    # else:
+    return fallback_lang
 
 # Bot startup
 @client.event
@@ -176,28 +185,30 @@ async def on_message(message):
                     await message.add_reaction('💔')
 
 
-@client.slash_command(name='history', description='자신 또는 특적 유저의 메세지 전적을 확인합니다.')
+@client.slash_command(name=fallback_lang['KARMA']['name'], description=fallback_lang['KARMA']['description'])
 async def karma(interaction: Interaction,
                 user: nextcord.User = nextcord.SlashOption(
-                    name='유저',
-                    description='전적을 확인할 유저를 선택해 주세요.',
+                    name=fallback_lang['KARMA']['user.name'],
+                    description=fallback_lang['KARMA']['user.description'],
                     required=False)):
     if user is None:
         user = interaction.user
+    lang = lang_check(interaction.locale)
+
     if user.bot:
-        await interaction.response.send_message('봇의 전적은 확인할 수 없습니다.', ephemeral=True)
+        await interaction.response.send_message(embed=nextcord.Embed(title=lang['KARMA']['error.title'], description=lang['KARMA']['error.bot'], colour=nextcord.Color.red()), ephemeral=True)
         return
     evalue = r.get(f'val:{user.id}')
     message_count = r.get(f'msg:{user.id}')
     if evalue is None:
-        await interaction.response.send_message('해당 유저는 전적이 없습니다.', ephemeral=True)
+        await interaction.response.send_message(embed=nextcord.Embed(title=lang['KARMA']['error.title'], description=lang['KARMA']['error.nothing'], colour=nextcord.Color.red()), ephemeral=True)
         return
     else:
         evaluation = 100 - round(float(evalue) / int(message_count), 2)
         embed = nextcord.Embed(title=f'', colour=get_grade(evaluation).color())
-        embed.add_field(name='봇에 기록된 메세지', value=f'**{message_count}**개', inline=True)
-        embed.add_field(name='매너 점수', value=f'**{evaluation}**점', inline=True)
-        embed.set_author(name=f'{user.name}님의 전적', icon_url=user.avatar)
+        embed.add_field(name=lang['KARMA']['embed.recorded'], value=lang['KARMA']['embed.recorded.description'].format(message_count), inline=True)
+        embed.add_field(name=lang['KARMA']['embed.manner'], value=lang['KARMA']['embed.manner.description'].format(evaluation), inline=True)
+        embed.set_author(name=lang['KARMA']['embed.title'].format(user.display_name), icon_url=user.avatar)
 
         img = nextcord.File(f'image/{get_grade(evaluation).letter_grade()}.png', filename='image.png')
         embed.set_thumbnail(url='attachment://image.png')
@@ -205,43 +216,46 @@ async def karma(interaction: Interaction,
         await interaction.response.send_message(embed=embed, file=img)
 
 
-@client.slash_command(name='dashboard', description='대시보드를 사용하여 봇의 설정을 변경합니다.', default_member_permissions=8)
+@client.slash_command(name=fallback_lang['DASHBOARD']['name'], description=fallback_lang['DASHBOARD']['description'], default_member_permissions=8)
 async def dashboard(interaction: Interaction):
+    lang = lang_check(interaction.locale)
 
     delete_percentage = r.get(f'del:{interaction.guild.id}')
     if delete_percentage is None:
-        delete_percentage = '**70%** 이상 부정적'
+        delete_percentage = 70
+        delete_percentage = lang['DASHBOARD']['text.negative'].format(delete_percentage)
     elif delete_percentage == '0':
-        delete_percentage = '`비활성`'
+        delete_percentage = lang['DASHBOARD']['text.disabled']
     else:
-        delete_percentage = f'**{delete_percentage}%** 이상 부정적'
+        delete_percentage = lang['DASHBOARD']['text.negative'].format(delete_percentage)
 
     reaction_percentage = r.get(f'rea:{interaction.guild.id}')
     if reaction_percentage is None:
-        reaction_percentage = '**50%** 이상 부정적'
+        reaction_percentage = 50
+        reaction_percentage = lang['DASHBOARD']['text.negative'].format(reaction_percentage)
     elif reaction_percentage == '0':
-        reaction_percentage = '`비활성`'
+        reaction_percentage = lang['DASHBOARD']['text.disabled']
     else:
-        reaction_percentage = f'**{reaction_percentage}%** 이상 부정적'
+        reaction_percentage = lang['DASHBOARD']['text.negative'].format(reaction_percentage)
 
     logging_channel = r.get(f'log:{interaction.guild.id}')
     if logging_channel is None:
-        logging_channel = '`없음`'
+        logging_channel = lang['DASHBOARD']['text.disabled']
     else:
         logging_channel = f'<#{logging_channel}>'
 
-    embed = nextcord.Embed(title=f'**{client.user.name}** 대시보드', description='밑에 있는 드랍다운을 사용하여 봇의 설정을 변경할 수 있습니다.', colour=nextcord.Color.green())
-    embed.add_field(name='**🧹 삭제 기준**', value=delete_percentage, inline=True)
-    embed.add_field(name='**💔 반응 기준**', value=reaction_percentage, inline=True)
-    embed.add_field(name='**📝 로그 채널**', value=f'{logging_channel}', inline=True)
-    embed.set_footer(text='메세지 삭제 또는 반응을 원치 않을 경우 0으로 설정해 주세요.')
+    embed = nextcord.Embed(title=lang['DASHBOARD']['embed.title'].format(interaction.guild.name), description=lang['DASHBOARD']['embed.description'], colour=nextcord.Color.green())
+    embed.add_field(name=lang['DASHBOARD']['embed.delete'], value=delete_percentage, inline=True)
+    embed.add_field(name=lang['DASHBOARD']['embed.reaction'], value=reaction_percentage, inline=True)
+    embed.add_field(name=lang['DASHBOARD']['embed.log'], value=f'{logging_channel}', inline=True)
+    embed.set_footer(text=lang['DASHBOARD']['embed.footer'])
 
     selections = [
-        nextcord.SelectOption(label='삭제 기준 변경', value='del', emoji='🧹'),
-        nextcord.SelectOption(label='반응 기준 변경', value='rea', emoji='💔'),
-        nextcord.SelectOption(label='로그 채널 변경', value='log', emoji='📝')
+        nextcord.SelectOption(label=lang['DASHBOARD']['dropdown.delete'], value='del', emoji='🧹'),
+        nextcord.SelectOption(label=lang['DASHBOARD']['dropdown.reaction'], value='rea', emoji='💔'),
+        nextcord.SelectOption(label=lang['DASHBOARD']['dropdown.log'], value='log', emoji='📝')
     ]
-    view = DropdownMenu(selections, '변경할 설정을 선택해 주세요.')
+    view = DropdownMenu(selections, lang['DASHBOARD']['dropdown.placeholder'])
 
     await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
