@@ -281,11 +281,12 @@ class Dropdown(nextcord.ui.Select):
         super().__init__(placeholder=placeholder, options=options)
 
     async def callback(self, interaction: Interaction):
+        lang = lang_check(interaction.locale)
         if self.values[0] == 'del':
-            modal = Popup('삭제 기준 변경', '0을 입력하면 메세지 삭제를 비활성화 합니다.', '0~100 사이의 숫자를 입력하세요.', 'del',)
+            modal = Popup(lang['DROPDOWN']['delete.title'], lang['DROPDOWN']['delete.label'], lang['DROPDOWN']['delete.placeholder'], 'del',)
             await interaction.response.send_modal(modal)
         elif self.values[0] == 'rea':
-            modal = Popup('반응 기준 변경', '0을 입력하면 메세지 반응을 비활성화 합니다.', '0~100 사이의 숫자를 입력하세요.', 'rea',)
+            modal = Popup(lang['DROPDOWN']['reaction.title'], lang['DROPDOWN']['reaction.label'], lang['DROPDOWN']['reaction.placeholder'], 'rea',)
             await interaction.response.send_modal(modal)
         elif self.values[0] == 'log':
             selections = []
@@ -295,15 +296,15 @@ class Dropdown(nextcord.ui.Select):
                     selections.append(nextcord.SelectOption(label="# " + channel.name, description=str(channel.id), emoji='📝', value=f'set_log:{channel.id}'))
 
             if len(selections) == 0:
-                await interaction.response.send_message(embed=nextcord.Embed(title='오류', description=f'이 봇이 메세지를 보낼 수 있는 채널이 없습니다.', colour=nextcord.Color.red()), ephemeral=True)
+                await interaction.response.send_message(embed=nextcord.Embed(title=lang['DROPDOWN']['error'], description=lang['DROPDOWN']['log.no_channel'], colour=nextcord.Color.red()), ephemeral=True)
             else:
-                view = DropdownMenu(selections, '로그 채널을 선택해 주세요.')
-                embed = nextcord.Embed(title='로그 채널 변경', description='밑에 있는 드랍다운을 사용하여 로그 채널을 변경할 수 있습니다.', colour=nextcord.Color.green())
+                view = DropdownMenu(selections, lang['DROPDOWN']['log.dropdown.placeholder'])
+                embed = nextcord.Embed(title=lang['DROPDOWN']['log.title'], description=lang['DROPDOWN']['log.description'], colour=nextcord.Color.green())
                 await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
         elif self.values[0].startswith('set_log:'):
             channel_id = self.values[0].split(':')[1]
             r.set(f'log:{interaction.guild.id}', channel_id)
-            await interaction.response.send_message(embed=nextcord.Embed(title='완료', description=f'로그 채널이 <#{channel_id}>로 변경되었습니다.', colour=nextcord.Color.green()), ephemeral=True)
+            await interaction.response.send_message(embed=nextcord.Embed(title=lang['DROPDOWN']['log.success'], description=lang['DROPDOWN']['log.success.description'].format(f'<#{channel_id}>'), colour=nextcord.Color.green()), ephemeral=True)
 
 
 class DropdownMenu(nextcord.ui.View):
@@ -328,18 +329,19 @@ class Popup(nextcord.ui.Modal):
         self.add_item(self.name)
 
     async def callback(self, interaction: nextcord.Interaction) -> None:
+        lang = lang_check(interaction.locale)
         if interaction.data['components'][0]['components'][0]['custom_id'] == 'del':
             if self.name.value.isdigit() and 0 <= int(self.name.value) <= 100:
-                await interaction.response.send_message(embed=nextcord.Embed(title='설정 완료', description=f'성공적으로 메세지 삭제 기준을 **{self.name.value}%**부정적으로 정했습니다.', colour=nextcord.Color.green()), ephemeral=True)
+                await interaction.response.send_message(embed=nextcord.Embed(title=lang['POPUP']['success'], description=lang['POPUP']['success.delete'].format(self.name.value), colour=nextcord.Color.green()), ephemeral=True)
                 r.set(f'del:{interaction.guild.id}', self.name.value)
             else:
-                await interaction.response.send_message(embed=nextcord.Embed(title='오류', description=f'잘못된 값(`{self.name.value}`)을 입력하셨습니다. 0~100 사이의 숫자를 입력해 주세요.', colour=nextcord.Color.red()), ephemeral=True)
+                await interaction.response.send_message(embed=nextcord.Embed(title=lang['POPUP']['error'], description=lang['POPUP']['error.int'].format(self.name.value), colour=nextcord.Color.red()), ephemeral=True)
         elif interaction.data['components'][0]['components'][0]['custom_id'] == 'rea':
             if self.name.value.isdigit() and 0 <= int(self.name.value) <= 100:
-                await interaction.response.send_message(embed=nextcord.Embed(title='설정 완료', description=f'성공적으로 메세지 반응 기준을 **{self.name.value}%**부정적으로 정했습니다.', colour=nextcord.Color.green()), ephemeral=True)
+                await interaction.response.send_message(embed=nextcord.Embed(title=lang['POPUP']['success'], description=lang['POPUP']['success.reaction'].format(self.name.value), colour=nextcord.Color.green()), ephemeral=True)
                 r.set(f'rea:{interaction.guild.id}', self.name.value)
             else:
-                await interaction.response.send_message(embed=nextcord.Embed(title='오류', description=f'잘못된 값(`{self.name.value}`)을 입력하셨습니다. 0~100 사이의 숫자를 입력해 주세요.', colour=nextcord.Color.red()), ephemeral=True)
+                await interaction.response.send_message(embed=nextcord.Embed(title=lang['POPUP']['error'], description=lang['POPUP']['error.int'].format(self.name.value), colour=nextcord.Color.red()), ephemeral=True)
 
 
 client.run(token)
