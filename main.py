@@ -96,17 +96,21 @@ client = commands.Bot(command_prefix=prefix, intents=intents)
 
 def eveluate(expression):
     analyze_request = {'comment': {'text': expression}, 'requestedAttributes': {'TOXICITY': {}}}
-    try:
-        response = google.comments().analyze(body=analyze_request).execute()
-        return round(100 * (response['attributeScores']['TOXICITY']['summaryScore']['value']), 2)
-    except:
-        return None
+    # try:
+    response = google.comments().analyze(body=analyze_request).execute()
+    toxicity = round(100 * (response['attributeScores']['TOXICITY']['summaryScore']['value']), 2)
+    language = response['languages']
+    print(language)
+    return {'toxicity': toxicity, 'language': language}
+    # except:
+    #     return None
+
 
 def lang_check(locale):
-    # if locale == "en-US":
-    #     return english
-    # elif locale == "ko":
-    #     return korean
+    if locale in ["en-US", "en"]:
+        return english
+    elif locale == "ko":
+        return korean
     # elif locale == "zh-CN":
     #     return chinese
     # else:
@@ -141,7 +145,9 @@ async def on_message(message):
     lang = lang_check(message.guild.preferred_locale)
     if message.author.bot:
         return
-    evaluation = eveluate(message.content)
+    response = eveluate(message.content)
+    evaluation = response['toxicity']
+    lang = lang_check(response['language'][0])
     if evaluation is not None:
         evalue = r.get(f'val:{message.author.id}')
         message_count = r.get(f'msg:{message.author.id}')
@@ -264,7 +270,7 @@ async def dashboard(interaction: Interaction):
 
 @client.message_command(name=fallback_lang['EVALUATE']['name'])
 async def evaluate_message(interaction: nextcord.Interaction, message: nextcord.Message):
-    evaluation = eveluate(message.content)
+    evaluation = eveluate(message.content)['toxicity']
     lang = lang_check(interaction.locale)
 
     if evaluation is None:
