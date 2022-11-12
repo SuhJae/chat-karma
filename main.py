@@ -96,14 +96,13 @@ client = commands.Bot(command_prefix=prefix, intents=intents)
 
 def eveluate(expression):
     analyze_request = {'comment': {'text': expression}, 'requestedAttributes': {'TOXICITY': {}}}
-    # try:
-    response = google.comments().analyze(body=analyze_request).execute()
-    toxicity = round(100 * (response['attributeScores']['TOXICITY']['summaryScore']['value']), 2)
-    language = response['languages']
-    print(language)
-    return {'toxicity': toxicity, 'language': language}
-    # except:
-    #     return None
+    try:
+        response = google.comments().analyze(body=analyze_request).execute()
+        toxicity = round(100 * (response['attributeScores']['TOXICITY']['summaryScore']['value']), 2)
+        language = response['languages']
+        return {'toxicity': toxicity, 'language': language}
+    except:
+        return None
 
 
 def lang_check(locale):
@@ -266,6 +265,18 @@ async def dashboard(interaction: Interaction):
     view = DropdownMenu(selections, lang['DASHBOARD']['dropdown.placeholder'])
 
     await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+
+
+@client.slash_command(name=fallback_lang['HELP']['name'], description=fallback_lang['HELP']['description'])
+async def help(interaction: Interaction):
+    lang = lang_check(interaction.locale)
+
+    embed = nextcord.Embed(title=lang['HELP']['embed.title'], description=lang['HELP']['embed.description'], colour=nextcord.Color.green())
+    embed.add_field(name=f"**· /{lang['KARMA']['name']}**", value=f"{lang['KARMA']['description']}", inline=False)
+    embed.add_field(name=f"**· /{lang['DASHBOARD']['name']}**", value=f"{lang['DASHBOARD']['description']}", inline=False)
+    embed.add_field(name=f"**· /{lang['HELP']['name']}**", value=f"{lang['HELP']['description']}", inline=False)
+
+    await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
 @client.message_command(name=fallback_lang['EVALUATE']['name'])
