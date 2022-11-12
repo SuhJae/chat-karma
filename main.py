@@ -192,7 +192,7 @@ async def on_message(message):
                 await message.add_reaction('💔')
 
 
-@client.slash_command(name=fallback_lang['KARMA']['name'], description=fallback_lang['KARMA']['description'])
+@client.slash_command(name=fallback_lang['KARMA']['name'], description=fallback_lang['KARMA']['description'], dm_permission=True)
 async def karma(interaction: Interaction,
                 user: nextcord.User = nextcord.SlashOption(
                     name=fallback_lang['KARMA']['user.name'],
@@ -222,8 +222,16 @@ async def karma(interaction: Interaction,
 
         await interaction.response.send_message(embed=embed, file=img)
 
+@client.slash_command(name=fallback_lang['PING']['name'], description=fallback_lang['PING']['description'],
+                      dm_permission=True)
+async def ping(interaction: Interaction):
+    templang = lang_check(interaction.locale)
+    embed = nextcord.Embed(title=templang['PING']['embed.title'],
+                           description=templang['PING']['embed.description'].format(round(client.latency * 1000)),
+                           color=nextcord.Color.green())
+    await interaction.response.send_message(embed=embed, ephemeral=True)
 
-@client.slash_command(name=fallback_lang['DASHBOARD']['name'], description=fallback_lang['DASHBOARD']['description'], default_member_permissions=8)
+@client.slash_command(name=fallback_lang['DASHBOARD']['name'], description=fallback_lang['DASHBOARD']['description'], default_member_permissions=8, dm_permission=False)
 async def dashboard(interaction: Interaction):
     lang = lang_check(interaction.locale)
 
@@ -267,13 +275,14 @@ async def dashboard(interaction: Interaction):
     await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
 
-@client.slash_command(name=fallback_lang['HELP']['name'], description=fallback_lang['HELP']['description'])
+@client.slash_command(name=fallback_lang['HELP']['name'], description=fallback_lang['HELP']['description'], dm_permission=True)
 async def help(interaction: Interaction):
     lang = lang_check(interaction.locale)
 
     embed = nextcord.Embed(title=lang['HELP']['embed.title'], description=lang['HELP']['embed.description'], colour=nextcord.Color.green())
     embed.add_field(name=f"**· /{lang['KARMA']['name']}**", value=f"{lang['KARMA']['description']}", inline=False)
     embed.add_field(name=f"**· /{lang['DASHBOARD']['name']}**", value=f"{lang['DASHBOARD']['description']}", inline=False)
+    embed.add_field(name=f"**· /{lang['PING']['name']}**", value=f"{lang['PING']['description']}", inline=False)
     embed.add_field(name=f"**· /{lang['HELP']['name']}**", value=f"{lang['HELP']['description']}", inline=False)
 
     await interaction.response.send_message(embed=embed, ephemeral=True)
