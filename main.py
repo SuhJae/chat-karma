@@ -141,7 +141,6 @@ async def on_ready():
 
 @client.event
 async def on_message(message):
-    lang = lang_check(message.guild.preferred_locale)
     if message.author.bot:
         return
     response = eveluate(message.content)
@@ -151,11 +150,18 @@ async def on_message(message):
         evalue = r.get(f'val:{message.author.id}')
         message_count = r.get(f'msg:{message.author.id}')
         if evalue is None:
-            r.set(f'val:{message.author.id}', evaluation)
-            r.set(f'msg:{message.author.id}', 1)
+            total_evaluation = evaluation
+            total_message = 1
+            r.set(f'val:{message.author.id}', total_evaluation)
+            r.set(f'msg:{message.author.id}', total_message)
         else:
+            total_evaluation = float(evalue) + evaluation
+            total_message = int(message_count) + 1
             r.set(f'val:{message.author.id}', (float(evalue) + evaluation))
             r.set(f'msg:{message.author.id}', int(message_count) + 1)
+
+        manner_score = 100 - (total_evaluation / total_message)
+        r.zadd('manner', {message.author.id: manner_score})
 
         delete_percentage = r.get(f'del:{message.guild.id}')
         if delete_percentage is None:
@@ -211,11 +217,17 @@ async def karma(interaction: Interaction,
         await interaction.response.send_message(embed=nextcord.Embed(title=lang['KARMA']['error.title'], description=lang['KARMA']['error.nothing'], colour=nextcord.Color.red()), ephemeral=True)
         return
     else:
+        ranking = r.zrevrank('manner', interaction.user.id) + 1
+        total_users = r.zcard('manner')
+        top_percent = round((ranking / total_users) * 100, 2)
+
         evaluation = 100 - round(float(evalue) / int(message_count), 2)
         embed = nextcord.Embed(title=f'', colour=get_grade(evaluation).color())
-        embed.add_field(name=lang['KARMA']['embed.recorded'], value=lang['KARMA']['embed.recorded.description'].format(message_count), inline=True)
         embed.add_field(name=lang['KARMA']['embed.manner'], value=lang['KARMA']['embed.manner.description'].format(evaluation), inline=True)
+        embed.add_field(name=lang['KARMA']['embed.rank'], value=lang['KARMA']['embed.rank.description'].format(top_percent, ranking, total_users), inline=True)
         embed.set_author(name=lang['KARMA']['embed.title'].format(user.display_name), icon_url=user.avatar)
+
+        embed.set_footer(text=lang['KARMA']['embed.footer'].format(message_count))
 
         img = nextcord.File(f'image/{get_grade(evaluation).letter_grade()}.png', filename='image.png')
         embed.set_thumbnail(url='attachment://image.png')
@@ -373,5 +385,16 @@ class Popup(nextcord.ui.Modal):
             else:
                 await interaction.response.send_message(embed=nextcord.Embed(title=lang['POPUP']['error'], description=lang['POPUP']['error.int'].format(self.name.value), colour=nextcord.Color.red()), ephemeral=True)
 
+
+# code that will add all users to the ranking
+if not r.exists('manner'):
+    keys = r.keys('val:*')
+    for key in keys:
+        print(f'{(r.get(key.replace("val", "msg")))} - {(r.get(key))}')
+        id = key.split(':')[1]
+
+        manner_score = 100 - float(r.get(key)) / float(r.get(key.replace("val", "msg")))
+        print(manner_score)
+        r.zadd('manner', {id: manner_score})
 
 client.run(token)
