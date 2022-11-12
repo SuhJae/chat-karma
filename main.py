@@ -217,7 +217,7 @@ async def karma(interaction: Interaction,
         await interaction.response.send_message(embed=nextcord.Embed(title=lang['KARMA']['error.title'], description=lang['KARMA']['error.nothing'], colour=nextcord.Color.red()), ephemeral=True)
         return
     else:
-        ranking = r.zrevrank('manner', interaction.user.id) + 1
+        ranking = r.zrevrank('manner', user.id) + 1
         total_users = r.zcard('manner')
         top_percent = round((ranking / total_users) * 100, 2)
 
