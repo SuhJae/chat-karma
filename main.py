@@ -5,9 +5,12 @@ import time
 
 import nextcord
 import redis
-from nextcord import Interaction, Locale
+from nextcord import Interaction
 from nextcord.ext import commands
 from googleapiclient import discovery
+
+import numpy as np
+from matplotlib import pyplot as plt
 
 from grading import get_grade
 
@@ -298,6 +301,29 @@ async def help(interaction: Interaction):
     embed.add_field(name=f"**· /{lang['HELP']['name']}**", value=f"{lang['HELP']['description']}", inline=False)
 
     await interaction.response.send_message(embed=embed, ephemeral=True)
+
+
+@client.slash_command(name='distribution', description='Shows the distribution of karma score', dm_permission=True)
+async def distribution(interaction: Interaction):
+    # get karma scores from the database
+    scores = r.zrange('manner', 0, -1, desc=True, withscores=True)
+    scores = [int(score) for member, score in scores]
+
+    # set size of the diagram to 500x300
+    fig = plt.figure(figsize=(5, 3))
+
+    # draw a histogram
+    plt.hist(scores, bins=20)
+
+    # set labels
+    plt.xlabel('Karma score')
+    plt.ylabel('Number of members')
+
+    # save the figure to a temporary file
+    # plt.savefig('image.png')
+
+    await interaction.response.send_message('Not abilable', ephemeral=True)
+
 
 
 @client.message_command(name=fallback_lang['EVALUATE']['name'])
